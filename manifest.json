@@ -1,0 +1,25 @@
+{
+    "manifest_version": 3,
+    "name": "Job Application Tracker",
+    "version": "1.0",
+    "description": "Tracks job application emails and updates status automatically.",
+    "permissions": ["identity", "storage", "tabs", "scripting"],
+    "host_permissions": ["https://mail.google.com/*", "https://docs.google.com/spreadsheets/*"],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "content_scripts": [
+      {
+        "matches": ["https://mail.google.com/*"],
+        "js": ["content.js"]
+      }
+    ],
+    "action": {
+      "default_popup": "popup.html"
+    },
+    "oauth2": {
+      "client_id": "245469057691-risdu1fekrq1sre0r87q6hm608l02jnp.apps.googleusercontent.com",
+      "scopes": ["https://www.googleapis.com/auth/gmail.readonly"]
+    }
+  }
+  
