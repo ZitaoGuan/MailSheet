@@ -4,7 +4,7 @@ function authenticateUser() {
     // Handle authentication success or failure
     chrome.identity.getAuthToken({interactive: true}, (token) => {
         if (chrome.runtime.lastError){
-            console.error("Authenication Failed: ", chrome.runtime.lastError);
+            console.error("Authenication Failed: ", chrome.runtime.lastError.message);
         } else {
             console.log("Authenication Successful: ", token);
         }
@@ -18,15 +18,15 @@ function getAccessToken() {
     console.log("Checking for existing access token");
 
     return new Promise((resolve, reject) => {chrome.identity.getAuthToken({ interactive: false }, (token) => {
-            if (chrome.runtime.lastError) {
-                console.error("Error retrieving token:", chrome.runtime.lastError);
-                token = authenticateUser();
-                console.log("Access token retrieved:", token);
-                reject(chrome.runtime.lastError);
-            } else {
-                console.log("Access token retrieved:", token);
-                resolve(token);
-            }
+        if (chrome.runtime.lastError) {
+            console.error("Error retrieving token:", chrome.runtime.lastError);
+            token = authenticateUser();
+            console.log("Access token retrieved:", token);
+            reject(chrome.runtime.lastError);
+        } else {
+            console.log("Access token retrieved:", token);
+            resolve(token);
+        }
         });
     });
 }
@@ -107,25 +107,8 @@ function processMessages(messages, token, index, emailNum){
             // Skip if this was a rate-limited response
             if (!fullMessage) return;
 
-            const jobApplication = {
-                id : fullMessage.id,
-                subject : fullMessage.payload.headers.find(header => header.name === "Subject")?.value || "No Subject",
-                sender : fullMessage.payload.headers.find(header => header.name === "From")?.value || "Unknown Sender",
-                date : new Date(fullMessage.payload.headers.find(header => header.name === "Date")?.value || Date.now()).toISOString(),
-                lastUpdate: new Date(fullMessage.payload.headers.find(header => header.name === "Date")?.value || Date.now()).toISOString(),
-                state: fullMessage
-            }
+            const jobApplicationObject = extractJobDetails(fullMessage);
 
-            // Extract and log email details
-            const subject = fullMessage.payload.headers.find(header => header.name === "Subject")?.value;
-            const sender = fullMessage.payload.headers.find(header => header.name === "From")?.value;
-            const date = fullMessage.payload.headers.find(header => header.name === "Date")?.value;
-            
-            console.log('Email Number:', emailNum);
-            console.log('Subject:', subject);
-            console.log('Sender:', sender);
-            console.log('Date:', date);
-            
             // Move to the next message after a delay
             setTimeout(() => {
                 processMessages(messages, token, index + 1, emailNum + 1);
@@ -173,26 +156,79 @@ function fetchEmails() {
 }
 
 function extractJobDetails(emailData) {
-    // Extract the email snippet (short preview of the body)
-    let emailBody = emailData.snippet || "";
+    //Check if the email is a multipart or simple text
+    const status = "";
+    console.log("Mimetype:", emailData.payload.mimeType);
+    if (emailData.payload.mimeType === "text/plain" || emailData.payload.mimeType === "text/html"){
+        console.log("Mimetype:", emailData.payload.mimeType);
+        const content = emailData.payload.body.data;
+        try {
+            const raw = decoderBased64(content);
+            console.log("Raw:", raw);
+        } catch (error){
+            console.error("The error:", error);
+        }
+        console.log("Raw body:", raw);
+    } else if (emailData.payload.mimeType.startsWith("multipart/")){
+        for (const part of emailData.payload.parts){
+            if(part.mimeType === "text/plain" || part.mimeType === "text/html"){
+                const content = part.body.data;
+                const raw = decoderBased64(content);
+                console.log("Raw:", raw);
+            }
+        }
+    }
 
-    console.log(emailBody);
-    // Create an object to store job details
-    let jobDetails = {
-        messageId: "Unknown",
-        company: "Unknown",
-        position: "Unknown",
-        status: "Waiting",
-        receivedDate: "Unknown"
-    };
+    // Make the object
+    jobApplicationObject = {
+        id : emailData.id,
+        subject : emailData.payload.headers.find(header => header.name === "Subject")?.value || "No Subject",
+        sender : emailData.payload.headers.find(header => header.name === "From")?.value || "Unknown Sender",
+        date : new Date(emailData.payload.headers.find(header => header.name === "Date")?.value || Date.now()).toISOString(),
+        lastUpdate: new Date(emailData.payload.headers.find(header => header.name === "Date")?.value || Date.now()).toISOString(),
+        state: status
+    }
+    
+    storeJobApplication(jobApplicationObject);
 
-    if (extractCompanyName(emailBody)) jobDetails.company = extractCompanyName(emailBody)[1];
-    jobDetails.position = extractJobPosition(emailBody);
-    jobDetails.status = determineApplicationStatus(emailBody);
-    jobDetails.receivedDate = extractReceivedDate(emailData);
+    console.log("Id:", jobApplicationObject.id);
+    console.log("Subject:", jobApplicationObject.subject);
+    console.log("Sender:", jobApplicationObject.sender);
+    console.log("date:", jobApplicationObject.date);
+    console.log("lastUpdate:", jobApplicationObject.lastUpdate);
+    console.log("state:", jobApplicationObject.state);
 
-    saveJobData(jobDetails);
+    return jobApplicationObject;
 
-    console.log(jobDetails);
-    return jobDetails;
 }
+
+// Decode the based64 to be able to parse through the message
+function decoderBased64(encodedData){
+    //check if the encodeddata is a string or if there is something there
+    try {
+        if (!encodedData || typeof encodedData !== "string"){
+            console.log("invalid code:", encodedData);
+            return "";
+        }
+        //replace all the url safe characters
+        const Based64safe = encodedData.replace(/-/g, "+").replace(/_/g, "/");
+
+        //decode to binary string
+        const binary = atob(Based64safe);
+
+        //Takes the bianry string and take each character and 
+        //place them into the position at their locations
+        //We need this for the Textdecoder since that is what is needed
+        const byte = new Uint8Array(binary.length);
+        for(let i = 0; i< byte.length; i++){
+            byte[i] = binary.charCodeAt(i);
+        }
+        
+        return new TextDecoder('utf-8').decode(byte);
+    } catch (error){
+        console.error("The decoder error", error);
+        return ""
+    }
+}
+
+
