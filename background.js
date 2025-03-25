@@ -155,26 +155,65 @@ function fetchEmails() {
     });
 }
 
+//Check the status of each parts that is given
+function CheckStatusApplication(emailContent){
+    const content = emailContent.toLowerCase();
+
+    const statusPatterns = {
+        'accepted': [
+          'congratulations', 'you have been accepted'
+        ],
+        'rejected': [
+          'unfortunately', 'regret to inform', 'cannot offer', 'not selected', 
+          'we are sorry', 'not able to offer', 'not successful', 'other candidates',
+          'position has been filled'
+        ],
+        'interview': [
+          'interview invitation', 'would like to interview', 'schedule an interview',
+          'invite you to interview'
+        ],
+        'pending': [
+            'under review', 'application received', 'processing', 
+            'reviewing', 'in progress', 'we are reviewing', 
+            'application status', 'currently evaluating', 'application under consideration',
+            'thank you for applying','received'
+        ]
+    };
+    
+    for (const [status, phrases] of Object.entries(statusPatterns)){
+        for (const phrase of phrases){
+            if (content.includes(phrase)){
+                return status;
+            }
+        }
+    }
+    return "Unknown";
+}
+
 function extractJobDetails(emailData) {
     //Check if the email is a multipart or simple text
-    const status = "";
+    let status = "Uknown";
+    let raw = "";
     console.log("Mimetype:", emailData.payload.mimeType);
     if (emailData.payload.mimeType === "text/plain" || emailData.payload.mimeType === "text/html"){
         console.log("Mimetype:", emailData.payload.mimeType);
         const content = emailData.payload.body.data;
         try {
-            const raw = decoderBased64(content);
-            console.log("Raw:", raw);
+            raw = decoderBased64(content);
+            status = CheckStatusApplication(raw);
+            // console.log("Raw:", raw);
         } catch (error){
             console.error("The error:", error);
         }
         console.log("Raw body:", raw);
     } else if (emailData.payload.mimeType.startsWith("multipart/")){
+        //for each part of the email decode it 
         for (const part of emailData.payload.parts){
             if(part.mimeType === "text/plain" || part.mimeType === "text/html"){
                 const content = part.body.data;
-                const raw = decoderBased64(content);
-                console.log("Raw:", raw);
+                raw = decoderBased64(content);
+                status = CheckStatusApplication(raw);
+                // console.log("Raw:", raw);
             }
         }
     }
@@ -188,7 +227,7 @@ function extractJobDetails(emailData) {
         lastUpdate: new Date(emailData.payload.headers.find(header => header.name === "Date")?.value || Date.now()).toISOString(),
         state: status
     }
-    
+
     storeJobApplication(jobApplicationObject);
 
     console.log("Id:", jobApplicationObject.id);
