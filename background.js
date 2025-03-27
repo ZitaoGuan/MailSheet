@@ -2,33 +2,49 @@
 function authenticateUser() {
     // Request an OAuth token using chrome.identity API
     // Handle authentication success or failure
-    chrome.identity.getAuthToken({interactive: true}, (token) => {
-        if (chrome.runtime.lastError){
-            console.error("Authenication Failed: ", chrome.runtime.lastError.message);
+
+    //Get the authentication token
+
+    return new Promise((resolve, reject) => {chrome.identity.getAuthToken({interactive: true}, (token) => {
+        if (chrome.runtime.lastError) {
+            console.error("Authenication Failed:", chrome.runtime.lastError.messages);
+            reject(chrome.runtime.lastError);
         } else {
-            console.log("Authenication Successful: ", token);
-        }
+            resolve(token);
+            }
+        });
     });
 }
 
-function getAccessToken() {
+async function getAccessToken() {
     // Check if a token already exists
     // If not, request a new token using authenticateUser()
     // Return the access token for future API requests
-    console.log("Checking for existing access token");
+    // console.log("Checking for existing access token");
 
-    return new Promise((resolve, reject) => {chrome.identity.getAuthToken({ interactive: false }, (token) => {
-        if (chrome.runtime.lastError) {
-            console.error("Error retrieving token:", chrome.runtime.lastError);
-            token = authenticateUser();
-            console.log("Access token retrieved:", token);
-            reject(chrome.runtime.lastError);
-        } else {
-            console.log("Access token retrieved:", token);
-            resolve(token);
-        }
+    //create a promise to see if there is an error with getting the token
+    try {
+        return await new Promise((resolve, reject) => {chrome.identity.getAuthToken({ interactive: false }, (token) => {
+            if (chrome.runtime.lastError) {
+                console.error("Error retrieving token:", chrome.runtime.lastError);
+                token = authenticateUser();
+                // console.log("Access token retrieved:", token);
+                reject(chrome.runtime.lastError);
+            } else {
+                // console.log("Access token retrieved:", token);
+                resolve(token);
+            }
+            });
         });
-    });
+    } catch(error){
+        try {
+            await authenticateUser();
+        } catch (authError){
+            console.error("Authentication Failed:", authError);
+            throw authError;
+        }
+
+    }
 }
 
 // find and store the job app in the local storage
@@ -38,7 +54,7 @@ function storeJobApplication(JobApplication){
     chrome.storage.local.get(JobApplication.id, function(result){
         if(Object.keys(result).length === 0) {
             chrome.storage.local.set({[JobApplication.id]: JobApplication}, function() {
-                console.log("Job log:", JobApplication.id);
+                // console.log("Job log:", JobApplication.id);
                 updateJobApplicationIndex(JobApplication.id);
             });
         } else {
@@ -75,10 +91,10 @@ function delay(time){
 function processMessages(messages, token, index, emailNum){
     // If we've processed all messages, return
     if (index >= messages.length) {
-        console.log("Finished processing all emails");
+        // console.log("Finished processing all emails");
         return;
     }
-    
+
     // Get the current message ID
     const messageId = messages[index].id;
     
@@ -94,7 +110,7 @@ function processMessages(messages, token, index, emailNum){
         .then(response => {
             // Check for rate limiting
             if (response.status === 429) {
-                console.log("Rate limit hit (429 error). Waiting longer before retry...");
+                // console.log("Rate limit hit (429 error). Waiting longer before retry...");
                 // Wait for 5 seconds before trying the same message again
                 setTimeout(() => {
                     processMessages(messages, token, index, emailNum);
@@ -131,20 +147,21 @@ function fetchEmails() {
 
     getAccessToken().then(token => {
         let emailNum = 0;
-        console.log("Using token: ", token);
+        // console.log("Using token: ", token);
 
         fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?q=job+application", {
+            maxResults: 500,
             headers: { Authorization: `Bearer ${token}` }
         })
         //convert to json
         .then(response => response.json())
         .then(data => {
-            console.log("Gmail API response:", data);
+            // console.log("Gmail API response:", data);
             //check if there is a message
             if (data.messages && data.messages.length > 0) {
                 processMessages(data.messages, token, 0, emailNum);
               } else {
-                console.log('No messages found.');
+                // console.log('No messages found.');
               }
             })
         .catch(error => {
@@ -194,9 +211,9 @@ function extractJobDetails(emailData) {
     //Check if the email is a multipart or simple text
     let status = "Uknown";
     let raw = "";
-    console.log("Mimetype:", emailData.payload.mimeType);
+    // console.log("Mimetype:", emailData.payload.mimeType);
     if (emailData.payload.mimeType === "text/plain" || emailData.payload.mimeType === "text/html"){
-        console.log("Mimetype:", emailData.payload.mimeType);
+        // console.log("Mimetype:", emailData.payload.mimeType);
         const content = emailData.payload.body.data;
         try {
             raw = decoderBased64(content);
@@ -205,7 +222,7 @@ function extractJobDetails(emailData) {
         } catch (error){
             console.error("The error:", error);
         }
-        console.log("Raw body:", raw);
+        // console.log("Raw body:", raw);
     } else if (emailData.payload.mimeType.startsWith("multipart/")){
         //for each part of the email decode it 
         for (const part of emailData.payload.parts){
