@@ -272,14 +272,15 @@ function extractJobDetails(emailData) {
     const fromSubject = emailData.payload.headers.find(header => header.name === "Subject");
     const fromDate = emailData.payload.headers.find(header => header.name === "Date");
 
-    extractJobName();
+    console.log("Header:", fromHeader.value);
+    console.log("Subject", fromSubject.value);
 
     // Make the object
     jobApplicationObject = {
         id : emailData.id,
         jobDetail : {
-            companyName : "Uknown",
-            JobTitle : "Title",
+            companyName : extractJobName(fromHeader.value, fromSubject.value) || "Unknown Company Name",
+            JobTitle : extractJobTitle(raw) || "Unknown Title",
             ApplicationDate : new Date(fromDate?.value || Date.now()).toISOString(),
             SourceEmail : fromHeader?.value || "Unknown Sender",
             subject : fromSubject?.value || "No Subject",
@@ -297,15 +298,114 @@ function extractJobDetails(emailData) {
 
 }
 
+//take the header and the subject from the payload
+//return the company name
 function extractJobName(fromEmail, subject){
-    if(fromEmail){
-        const emailDomain = fromEmail.split('@')[1];
-        console.log(emailDomain);   
+    if(fromEmail && fromEmail !== "Indeed Apply <indeedapply@indeed.com>"){
+        console.log(fromEmail);
+        return fromEmail
     }
-    if (subject){
-        const subjectlog = subject.
+    if(subject){
+        console.log(subject);
+        return subject;
     }
+    return null;
+}
 
+//take the data from the body and extract the job title
+function extractJobTitle(rawData){
+
+    
+
+    const Jobtitle = [
+        // Entry-Level Positions
+    "Junior Software Developer", "Marketing Coordinator", "Customer Service Representative", "Sales Associate",
+    "Administrative Assistant", "Data Entry Clerk", "Graphic Design Assistant", "Social Media Coordinator",
+    "Human Resources Assistant", "Production Assistant", "Junior Accountant", "Help Desk Technician", 
+    "Research Assistant", "Junior Copywriter",
+
+    // Technology Roles
+    "Software Engineer", "Web Developer", "Mobile App Developer", "Cloud Solutions Architect", "Cybersecurity Analyst",
+    "Network Engineer", "Database Administrator", "DevOps Engineer", "Machine Learning Engineer", "Full Stack Developer",
+    "Front-end Developer", "Back-end Developer", "UI/UX Designer", "IT Support Specialist", "Systems Administrator",
+    "QA Engineer", "Product Manager", "Technical Project Manager", "Data Scientist", "Business Intelligence Analyst",
+
+    // Business & Finance
+    "Financial Analyst", "Investment Banker", "Management Consultant", "Business Development Manager",
+    "Account Manager", "Sales Representative", "Marketing Manager", "Operations Coordinator", "Project Coordinator",
+    "Supply Chain Analyst", "Procurement Specialist", "Business Analyst", "Risk Analyst", "Compliance Officer",
+    "Treasury Analyst", "Corporate Strategy Analyst",
+
+    // Healthcare
+    "Registered Nurse", "Physician", "Medical Assistant", "Healthcare Administrator", "Physical Therapist",
+    "Occupational Therapist", "Pharmacist", "Dental Hygienist", "Radiologic Technologist", "Mental Health Counselor",
+    "Clinical Research Coordinator", "Healthcare Data Analyst", "Medical Billing Specialist", "Public Health Coordinator",
+    "Emergency Medical Technician",
+
+    // Creative & Media
+    "Graphic Designer", "Content Writer", "Social Media Manager", "Digital Marketing Specialist", 
+    "Video Editor", "Photographer", "Art Director", "UX/UI Designer", "Copywriter", "Public Relations Specialist",
+    "Brand Manager", "Creative Director", "Multimedia Specialist", "Animation Artist", "Technical Writer",
+
+    // Education
+    "Elementary School Teacher", "High School Teacher", "College Professor", "Curriculum Developer",
+    "Educational Consultant", "School Counselor", "Academic Advisor", "Online Tutor", "Special Education Instructor",
+    "Corporate Trainer", "Instructional Designer", "Education Program Manager", "Research Educator",
+    "Educational Technology Specialist",
+
+    // Engineering
+    "Mechanical Engineer", "Electrical Engineer", "Civil Engineer", "Chemical Engineer", "Aerospace Engineer",
+    "Environmental Engineer", "Biomedical Engineer", "Software Engineer", "Data Engineer", "Robotics Engineer",
+    "Quality Assurance Engineer", "Structural Engineer", "Process Engineer", "Product Design Engineer",
+    "Research and Development Engineer",
+
+    // Hospitality & Service
+    "Restaurant Manager", "Hotel Manager", "Event Coordinator", "Hospitality Supervisor", "Chef",
+    "Bartender", "Customer Experience Manager", "Travel Consultant", "Catering Manager", "Front Desk Coordinator",
+    "Guest Relations Specialist", "Food and Beverage Manager", "Tour Guide", "Concierge",
+
+    // Legal & Compliance
+    "Paralegal", "Legal Assistant", "Compliance Officer", "Contract Administrator", "Legal Consultant",
+    "Regulatory Affairs Specialist", "Corporate Counsel", "Intellectual Property Specialist", "Compliance Analyst",
+    "Risk Management Specialist",
+
+    // Sales & Retail
+    "Sales Representative", "Retail Manager", "Account Executive", "Business Development Representative",
+    "Sales Operations Analyst", "Retail Sales Associate", "Retail Buyer", "E-commerce Specialist",
+    "Inside Sales Representative", "Outside Sales Representative", "Channel Sales Manager", "Sales Training Specialist",
+
+    // Science & Research
+    "Research Scientist", "Laboratory Technician", "Clinical Research Associate", "Biotechnology Researcher",
+    "Environmental Scientist", "Pharmaceutical Researcher", "Forensic Scientist", "Data Research Analyst",
+    "Scientific Writer", "Research Project Manager",
+
+    // Human Resources
+    "HR Coordinator", "Recruitment Specialist", "Employee Relations Manager", "Training and Development Specialist",
+    "Benefits Coordinator", "Talent Acquisition Specialist", "HR Business Partner", "Compensation Analyst",
+    "Diversity and Inclusion Coordinator", "HR Operations Manager",
+
+    // Transportation & Logistics
+    "Logistics Coordinator", "Supply Chain Manager", "Warehouse Manager", "Transportation Analyst",
+    "Fleet Manager", "Shipping Coordinator", "Inventory Specialist", "Procurement Specialist",
+    "Logistics Sales Representative", "Operations Supervisor",
+
+    // Non-Profit & Social Services
+    "Program Coordinator", "Grant Writer", "Community Outreach Specialist", "Fundraising Manager",
+    "Social Worker", "Non-Profit Administrator", "Volunteer Coordinator", "Development Director",
+    "Impact Analyst", "Community Relations Manager",
+
+    // Remote & Emerging Roles
+    "Remote Project Manager", "Digital Nomad", "Virtual Assistant", "Remote Customer Support",
+    "Freelance Consultant", "Online Content Creator", "Remote Sales Representative", "Blockchain Specialist",
+    "AI Ethics Consultant", "Remote Learning Facilitator"
+    ];
+
+    for (const title of Jobtitle){
+        if (rawData.includes(title)){
+            return title
+        }
+    }
+    return null;
 }
 
 // Decode the based64 to be able to parse through the message
@@ -336,5 +436,3 @@ function decoderBased64(encodedData){
         return ""
     }
 }
-
-
