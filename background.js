@@ -3,8 +3,7 @@ function authenticateUser() {
     // Request an OAuth token using chrome.identity API
     // Handle authentication success or failure
 
-    //Get the authentication token
-
+    //Get the authentication token by having the user login to their google
     return new Promise((resolve, reject) => {chrome.identity.getAuthToken({interactive: true}, (token) => {
         if (chrome.runtime.lastError) {
             console.error("Authenication Failed:", chrome.runtime.lastError.messages);
@@ -22,7 +21,7 @@ async function getAccessToken() {
     // Return the access token for future API requests
     // console.log("Checking for existing access token");
 
-    //create a promise to see if there is an error with getting the token
+    //create a promise to see if we can get the token without user login
     try {
         return await new Promise((resolve, reject) => {chrome.identity.getAuthToken({ interactive: false }, (token) => {
             if (chrome.runtime.lastError) {
@@ -36,6 +35,7 @@ async function getAccessToken() {
             }
             });
         });
+    // if failed just have the user login to get the login token
     } catch(error){
         try {
             await authenticateUser();
@@ -50,28 +50,56 @@ async function getAccessToken() {
 // find and store the job app in the local storage
 // DOES NOT ADD THE PROPERITIES OF THE JOB APP IN THIS
 function storeJobApplication(JobApplication){
+
+    //Create a unqiue storagekey based on the company name and the job title
+    const storagekey = createStoragekey(JobApplication);
+
     //checking if the job application is in the storage
-    chrome.storage.local.get(JobApplication.id, function(result){
+    chrome.storage.local.get(storagekey, function(result){
+        // if the job application is not in storage
         if(Object.keys(result).length === 0) {
-            chrome.storage.local.set({[JobApplication.id]: JobApplication}, function() {
+            chrome.storage.local.set({[storagekey]: JobApplication}, function() {
                 // console.log("Job log:", JobApplication.id);
-                updateJobApplicationIndex(JobApplication.id);
+                updateJobApplicationIndex(storagekey);
             });
         } else {
-            const exisiting = result[JobApplication.id];
-            if (JSON.stringify(exisiting) !== JSON.stringify(JobApplication)){
-                JobApplication.lastUpdate = new Date().toISOString;
-                chrome.storage.local.set({[JobApplication.id]: JobApplication}, function(){
-                    console.log("Update the JobApplication Time:", JobApplication.lastUpdate);
-                });
+            // if the job application is in storage
+            const exisiting = result[storagekey];
+            const statusChange = exisiting.state.currentStatus !== JobApplication.state.currentStatus;
+            const dateChange = exisiting.jobDetail.ApplicationDate < JobApplication.state.ApplicationDate;
+            // if there is a change in the job application
+            if (statusChange || dateChange){
+                updateJobApplication = {
+                    ...exisiting,
+                    state: JobApplication.state.currentStatus,
+                    lastUpdate: new Date().toISOString(),
+                }
+                chrome.storage.local.set({[storagekey]: updateJobApplication});
             } else {
                 console.log("No Update to:", JobApplication);
             }
+
+            // if ((JSON.stringify(exisiting.state) !== JSON.stringify(JobApplication.state)) && (JSON.stringify(exisiting.JobTitle) === JSON.stringify(JobApplication.JobTitle))){
+            //     JobApplication.lastUpdate = new Date().toISOString;
+            //     chrome.storage.local.set({[JobApplication.id]: JobApplication}, function(){
+            //         console.log("Update the JobApplication Time:", JobApplication.lastUpdate);
+            //     });
+            // } else {
+            //     console.log("No Update to:", JobApplication);
+            // }
         }
     });
 }
 
-//takse the job id and update the list
+function createStoragekey(JobApplication){
+    return `job_${
+        JobApplication.jobDetail.JobTitle || 'Unknown'
+    }_${
+        JobApplication.jobDetail.companyName || 'Unknown'
+    }`;
+}
+
+//take the job id and update the list
 function updateJobApplicationIndex(jobid){
     chrome.storage.local.get('JobApplicationIndex', function(result){
         let index = result.JobApplicationIndex || [];
@@ -91,13 +119,13 @@ function delay(time){
 function processMessages(messages, token, index, emailNum){
     // If we've processed all messages, return
     if (index >= messages.length) {
-        // console.log("Finished processing all emails");
+        console.log("Finished processing all emails");
         return;
     }
 
     // Get the current message ID
     const messageId = messages[index].id;
-    
+
     // Wait before fetching the next message to avoid rate limiting
     setTimeout(() => {
         // Fetch the full message details
@@ -149,8 +177,7 @@ function fetchEmails() {
         let emailNum = 0;
         // console.log("Using token: ", token);
 
-        fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?q=job+application", {
-            maxResults: 500,
+        fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?q=subject:+application", {
             headers: { Authorization: `Bearer ${token}` }
         })
         //convert to json
@@ -176,6 +203,7 @@ function fetchEmails() {
 function CheckStatusApplication(emailContent){
     const content = emailContent.toLowerCase();
 
+    // Common word phrases to look through
     const statusPatterns = {
         'accepted': [
           'congratulations', 'you have been accepted'
@@ -196,14 +224,18 @@ function CheckStatusApplication(emailContent){
             'thank you for applying','received'
         ]
     };
-    
+
+    // Go through each status
     for (const [status, phrases] of Object.entries(statusPatterns)){
+        // Go through each phrases
         for (const phrase of phrases){
+            // if the content include the phrases then reutrn it
             if (content.includes(phrase)){
                 return status;
             }
         }
     }
+    // reutrn unknown
     return "Unknown";
 }
 
@@ -231,30 +263,48 @@ function extractJobDetails(emailData) {
                 raw = decoderBased64(content);
                 status = CheckStatusApplication(raw);
                 // console.log("Raw:", raw);
+                break;
             }
         }
     }
 
+    const fromHeader = emailData.payload.headers.find(header => header.name === "From");
+    const fromSubject = emailData.payload.headers.find(header => header.name === "Subject");
+    const fromDate = emailData.payload.headers.find(header => header.name === "Date");
+
+    extractJobName();
+
     // Make the object
     jobApplicationObject = {
         id : emailData.id,
-        subject : emailData.payload.headers.find(header => header.name === "Subject")?.value || "No Subject",
-        sender : emailData.payload.headers.find(header => header.name === "From")?.value || "Unknown Sender",
-        date : new Date(emailData.payload.headers.find(header => header.name === "Date")?.value || Date.now()).toISOString(),
-        lastUpdate: new Date(emailData.payload.headers.find(header => header.name === "Date")?.value || Date.now()).toISOString(),
-        state: status
+        jobDetail : {
+            companyName : "Uknown",
+            JobTitle : "Title",
+            ApplicationDate : new Date(fromDate?.value || Date.now()).toISOString(),
+            SourceEmail : fromHeader?.value || "Unknown Sender",
+            subject : fromSubject?.value || "No Subject",
+        },
+        state: {
+            currentStatus : status || "Unknown",
+            lastUpdate : new Date(fromDate?.value || Date.now()).toISOString()
+        }
     }
 
     storeJobApplication(jobApplicationObject);
 
-    console.log("Id:", jobApplicationObject.id);
-    console.log("Subject:", jobApplicationObject.subject);
-    console.log("Sender:", jobApplicationObject.sender);
-    console.log("date:", jobApplicationObject.date);
-    console.log("lastUpdate:", jobApplicationObject.lastUpdate);
-    console.log("state:", jobApplicationObject.state);
-
+    console.log("Job Application Details:", JSON.stringify(jobApplicationObject, null, 2))
     return jobApplicationObject;
+
+}
+
+function extractJobName(fromEmail, subject){
+    if(fromEmail){
+        const emailDomain = fromEmail.split('@')[1];
+        console.log(emailDomain);   
+    }
+    if (subject){
+        const subjectlog = subject.
+    }
 
 }
 
