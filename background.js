@@ -120,6 +120,7 @@ function processMessages(messages, token, index, emailNum){
     // If we've processed all messages, return
     if (index >= messages.length) {
         console.log("Finished processing all emails");
+        localStorage.clear()
         return;
     }
 
@@ -168,7 +169,7 @@ function processMessages(messages, token, index, emailNum){
     }, 2000); // Initial 2 second delay
 }
 
-function fetchEmails() {
+function fetchEmails(search_Que = "category:updates 'application' AND -alert OR 'position' AND -alert ") {
     // Call getAccessToken() to retrieve a valid token
     // Use the token to send a request to the Gmail API
     // Retrieve job application emails
@@ -177,7 +178,7 @@ function fetchEmails() {
         let emailNum = 0;
         // console.log("Using token: ", token);
 
-        fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?q=subject:+application", {
+        fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${search_Que}`, {
             headers: { Authorization: `Bearer ${token}` }
         })
         //convert to json
@@ -302,11 +303,14 @@ function extractJobDetails(emailData) {
 //return the company name
 function extractJobName(fromEmail, subject){
     if(fromEmail && fromEmail !== "Indeed Apply <indeedapply@indeed.com>"){
-        console.log(fromEmail);
-        return fromEmail
+        const domain = fromEmail.split('@')[1];
+        const parts = domain.split('.');
+        if (parts.length > 2) {
+            return parts[parts.length - 2];
+        }
+        return parts[0];
     }
     if(subject){
-        console.log(subject);
         return subject;
     }
     return null;
@@ -314,8 +318,6 @@ function extractJobName(fromEmail, subject){
 
 //take the data from the body and extract the job title
 function extractJobTitle(rawData){
-
-    
 
     const Jobtitle = [
         // Entry-Level Positions
