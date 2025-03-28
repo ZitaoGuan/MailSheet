@@ -120,7 +120,6 @@ function processMessages(messages, token, index, emailNum){
     // If we've processed all messages, return
     if (index >= messages.length) {
         console.log("Finished processing all emails");
-        localStorage.clear()
         return;
     }
 
@@ -200,46 +199,6 @@ function fetchEmails(search_Que = "category:updates 'application' AND -alert OR 
     });
 }
 
-//Check the status of each parts that is given
-function CheckStatusApplication(emailContent){
-    const content = emailContent.toLowerCase();
-
-    // Common word phrases to look through
-    const statusPatterns = {
-        'accepted': [
-          'congratulations', 'you have been accepted'
-        ],
-        'rejected': [
-          'unfortunately', 'regret to inform', 'cannot offer', 'not selected', 
-          'we are sorry', 'not able to offer', 'not successful', 'other candidates',
-          'position has been filled'
-        ],
-        'interview': [
-          'interview invitation', 'would like to interview', 'schedule an interview',
-          'invite you to interview'
-        ],
-        'pending': [
-            'under review', 'application received', 'processing', 
-            'reviewing', 'in progress', 'we are reviewing', 
-            'application status', 'currently evaluating', 'application under consideration',
-            'thank you for applying','received'
-        ]
-    };
-
-    // Go through each status
-    for (const [status, phrases] of Object.entries(statusPatterns)){
-        // Go through each phrases
-        for (const phrase of phrases){
-            // if the content include the phrases then reutrn it
-            if (content.includes(phrase)){
-                return status;
-            }
-        }
-    }
-    // reutrn unknown
-    return "Unknown";
-}
-
 function extractJobDetails(emailData) {
     //Check if the email is a multipart or simple text
     let status = "Uknown";
@@ -299,6 +258,46 @@ function extractJobDetails(emailData) {
 
 }
 
+//Check the status of each parts that is given
+function CheckStatusApplication(emailContent){
+    const content = emailContent.toLowerCase();
+
+    // Common word phrases to look through
+    const statusPatterns = {
+        'accepted': [
+          'congratulations', 'you have been accepted'
+        ],
+        'rejected': [
+          'unfortunately', 'regret to inform', 'cannot offer', 'not selected', 
+          'we are sorry', 'not able to offer', 'not successful', 'other candidates',
+          'position has been filled'
+        ],
+        'interview': [
+          'interview invitation', 'would like to interview', 'schedule an interview',
+          'invite you to interview'
+        ],
+        'pending': [
+            'under review', 'application received', 'processing', 
+            'reviewing', 'in progress', 'we are reviewing', 
+            'application status', 'currently evaluating', 'application under consideration',
+            'thank you for applying','received'
+        ]
+    };
+
+    // Go through each status
+    for (const [status, phrases] of Object.entries(statusPatterns)){
+        // Go through each phrases
+        for (const phrase of phrases){
+            // if the content include the phrases then reutrn it
+            if (content.includes(phrase)){
+                return status;
+            }
+        }
+    }
+    // reutrn unknown
+    return "Unknown";
+}
+
 //take the header and the subject from the payload
 //return the company name
 function extractJobName(fromEmail, subject){
@@ -318,9 +317,9 @@ function extractJobName(fromEmail, subject){
 
 //take the data from the body and extract the job title
 function extractJobTitle(rawData){
-
+    
     const Jobtitle = [
-        // Entry-Level Positions
+    // Entry-Level Positions
     "Junior Software Developer", "Marketing Coordinator", "Customer Service Representative", "Sales Associate",
     "Administrative Assistant", "Data Entry Clerk", "Graphic Design Assistant", "Social Media Coordinator",
     "Human Resources Assistant", "Production Assistant", "Junior Accountant", "Help Desk Technician", 
