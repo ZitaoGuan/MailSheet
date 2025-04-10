@@ -1,51 +1,5 @@
+import { getAccessToken } from './auth-utils.js';
 
-function authenticateUser() {
-    // Request an OAuth token using chrome.identity API
-    // Handle authentication success or failure
-
-    //Get the authentication token by having the user login to their google
-    return new Promise((resolve, reject) => {chrome.identity.getAuthToken({interactive: true}, (token) => {
-        if (chrome.runtime.lastError) {
-            console.error("Authenication Failed:", chrome.runtime.lastError.messages);
-            reject(chrome.runtime.lastError);
-        } else {
-            resolve(token);
-            }
-        });
-    });
-}
-
-async function getAccessToken() {
-    // Check if a token already exists
-    // If not, request a new token using authenticateUser()
-    // Return the access token for future API requests
-    // console.log("Checking for existing access token");
-
-    //create a promise to see if we can get the token without user login
-    try {
-        return await new Promise((resolve, reject) => {chrome.identity.getAuthToken({ interactive: false }, (token) => {
-            if (chrome.runtime.lastError) {
-                console.error("Error retrieving token:", chrome.runtime.lastError);
-                token = authenticateUser();
-                // console.log("Access token retrieved:", token);
-                reject(chrome.runtime.lastError);
-            } else {
-                // console.log("Access token retrieved:", token);
-                resolve(token);
-            }
-            });
-        });
-    // if failed just have the user login to get the login token
-    } catch(error){
-        try {
-            await authenticateUser();
-        } catch (authError){
-            console.error("Authentication Failed:", authError);
-            throw authError;
-        }
-
-    }
-}
 
 // find and store the job app in the local storage
 // DOES NOT ADD THE PROPERITIES OF THE JOB APP IN THIS
@@ -69,7 +23,7 @@ function storeJobApplication(JobApplication){
             const dateChange = exisiting.jobDetail.ApplicationDate < JobApplication.state.ApplicationDate;
             // if there is a change in the job application
             if (statusChange || dateChange){
-                updateJobApplication = {
+                const updateJobApplication = {
                     ...exisiting,
                     state: JobApplication.state.currentStatus,
                     lastUpdate: new Date().toISOString(),
@@ -236,7 +190,7 @@ function extractJobDetails(emailData) {
     console.log("Subject", fromSubject.value);
 
     // Make the object
-    jobApplicationObject = {
+    const jobApplicationObject = {
         id : emailData.id,
         jobDetail : {
             companyName : extractJobName(fromHeader.value, fromSubject.value) || "Unknown Company Name",
@@ -437,3 +391,5 @@ function decoderBased64(encodedData){
         return ""
     }
 }
+
+self.fetchEmails = fetchEmails;
